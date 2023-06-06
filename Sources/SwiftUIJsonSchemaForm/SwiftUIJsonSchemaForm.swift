@@ -18,8 +18,8 @@ struct FormField: View {
         self.keys = keys
         self.title = schema["title"].string ?? key
         
-        _stringValue = .init(initialValue: "")
-        _boolValue = .init(initialValue: false)
+        _stringValue = .init(initialValue: schema["default"].string ?? "")
+        _boolValue = .init(initialValue: schema["default"].boolValue)
         
         if let value = schema[key].string {
             _stringValue = .init(initialValue: value)
@@ -34,13 +34,28 @@ struct FormField: View {
         Group {
             switch schema["type"] {
                 case "string", "number":
-                    TextField(title, text: $stringValue)
+                    TextView(label: title, text: $stringValue, selections: schema["enum"].array?.map { v in
+                        v.stringValue
+                    })
                 case "boolean":
                     Toggle(title, isOn: $boolValue)
-            default:
-                Text("Unsupported type")
+                default:
+                    Text("Unsupported type")
             }
-        }.onChange(of: stringValue) { newValue in
+        }
+        .onAppear {
+            // Set default value
+            if let value = schema["default"].string {
+                let newValues = updateValueHelper(value: JSON(rawValue: value)!, keys: keys, values: values)
+                values = newValues
+            }
+            
+            if let value = schema["default"].bool {
+                let newValues = updateValueHelper(value: JSON(rawValue: value)!, keys: keys, values: values)
+                values = newValues
+            }
+        }
+        .onChange(of: stringValue) { newValue in
             let newValues = updateValueHelper(value: JSON(rawValue: newValue)!, keys: keys, values: values)
             values = newValues
         }.onChange(of: boolValue) { newValue in
@@ -61,7 +76,7 @@ public struct FormView: View {
     public init(jsonSchema: JSON, values: Binding<JSON>) {
         self.jsonSchema = jsonSchema
         self._values = values
-        previousKey = nil
+        self.previousKey = nil
     }
     
     /**
@@ -91,4 +106,28 @@ public struct FormView: View {
     }
 }
 
-
+struct JSONSchema_Previews: PreviewProvider {
+    static var previews: some View {
+        FormView(jsonSchema: """
+        {
+            "type": "object",
+            "properties": {
+                "a": {
+                    "type": "string",
+                    "title": "A",
+                    "enum": ["A", "B", "C"]
+                },
+                "b": {
+                    "type": "boolean",
+                    "title": "B"
+                },
+                "c": {
+                    "type": "string",
+                    "title": "Hello world",
+                    "default": "A"
+                }
+            }
+        }
+        """, values: .constant(JSON()))
+    }
+}
