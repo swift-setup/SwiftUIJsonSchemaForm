@@ -1,31 +1,35 @@
 import SwiftUI
 import SwiftyJSON
 
+public typealias OnUpdate = (JSON) -> Void
+
 struct FormField: View {
     let keys: [String]
     let schema: JSON
     let title: String
+    let onUpdate: OnUpdate
     
     @State var stringValue: String
     @State var boolValue: Bool
     @Binding var values: JSON
-    
-    init(schema: JSON, values: Binding<JSON>, keys: [String]) {
+
+    init(schema: JSON, values: Binding<JSON>, keys: [String], onUpdate: @escaping OnUpdate) {
         let key = keys.last!
         
         self._values = values
         self.schema = schema
         self.keys = keys
         self.title = schema["title"].string ?? key
+        self.onUpdate = onUpdate
         
         _stringValue = .init(initialValue: schema["default"].string ?? "")
         _boolValue = .init(initialValue: schema["default"].boolValue)
         
-        if let value = schema[key].string {
+        if let value = values.wrappedValue[key].string {
             _stringValue = .init(initialValue: value)
         }
         
-        if let value = schema[key].bool {
+        if let value = values.wrappedValue[key].bool {
             _boolValue = .init(initialValue: value)
         }
     }
@@ -58,9 +62,11 @@ struct FormField: View {
         .onChange(of: stringValue) { newValue in
             let newValues = updateValueHelper(value: JSON(rawValue: newValue)!, keys: keys, values: values)
             values = newValues
+            onUpdate(values)
         }.onChange(of: boolValue) { newValue in
             let newValues = updateValueHelper(value: JSON(rawValue: newValue)!, keys: keys, values: values)
             values = newValues
+            onUpdate(values)
         }
     }
 }
@@ -69,38 +75,42 @@ public struct FormView: View {
     let jsonSchema: JSON
     let previousKey: String?
     @Binding var values: JSON
+    let onUpdate: OnUpdate
     
     /**
      Creates a FormView using SwiftyJSON
      */
-    public init(jsonSchema: JSON, values: Binding<JSON>) {
+    public init(jsonSchema: JSON, values: Binding<JSON>, onUpdate: @escaping OnUpdate) {
         self.jsonSchema = jsonSchema
         self._values = values
         self.previousKey = nil
+        self.onUpdate = onUpdate
     }
     
     /**
      Creates a FormView using data
      */
-    public init(jsonSchema: Data, values: Binding<JSON>) {
+    public init(jsonSchema: Data, values: Binding<JSON>, onUpdate: @escaping OnUpdate) {
         self.previousKey = nil
         self.jsonSchema = try! JSON(data: jsonSchema)
         self._values = values
+        self.onUpdate = onUpdate
     }
     
     /**
      Creates a FormView using json string
      */
-    public init(jsonSchema: String, values: Binding<JSON>) {
+    public init(jsonSchema: String, values: Binding<JSON>, onUpdate: @escaping OnUpdate) {
         self.previousKey = nil
         self.jsonSchema = JSON(parseJSON: jsonSchema)
         self._values = values
+        self.onUpdate = onUpdate
     }
     
     public var body: some View {
         Form {
             ForEach(jsonSchema["properties"].dictionaryValue.keys.sorted(), id: \.self) { key in
-                FormField(schema: jsonSchema["properties"][key], values: $values, keys: [key])
+                FormField(schema: jsonSchema["properties"][key], values: $values, keys: [key], onUpdate: onUpdate)
             }
         }
     }
@@ -128,6 +138,30 @@ struct JSONSchema_Previews: PreviewProvider {
                 }
             }
         }
-        """, values: .constant(JSON()))
+        """, values: .constant(JSON())) { _ in
+        }
+        
+        FormView(jsonSchema: """
+        {
+            "type": "object",
+            "properties": {
+                "a": {
+                    "type": "string",
+                    "title": "A",
+                    "enum": ["A", "B", "C"]
+                },
+                "b": {
+                    "type": "boolean",
+                    "title": "B"
+                },
+                "c": {
+                    "type": "string",
+                    "title": "Hello world",
+                    "default": "A"
+                }
+            }
+        }
+        """, values: .constant(["c": "1111"])) { _ in
+        }
     }
 }
