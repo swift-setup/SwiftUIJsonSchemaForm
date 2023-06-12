@@ -11,6 +11,8 @@ struct FormField: View {
     
     @State var stringValue: String
     @State var boolValue: Bool
+    @State var intValue: Int
+    @State var floatValue: Float
     var values: JSON
 
     init(schema: JSON, values: JSON, keys: [String], onUpdate: @escaping OnUpdate) {
@@ -24,6 +26,8 @@ struct FormField: View {
         
         _stringValue = .init(initialValue: schema["default"].string ?? "")
         _boolValue = .init(initialValue: schema["default"].boolValue)
+        _intValue = .init(initialValue: schema["default"].intValue)
+        _floatValue = .init(initialValue: schema["default"].floatValue)
         
         if let value = values[key].string {
             _stringValue = .init(initialValue: value)
@@ -32,17 +36,30 @@ struct FormField: View {
         if let value = values[key].bool {
             _boolValue = .init(initialValue: value)
         }
+        
+        if let value = values[key].int {
+            _intValue = .init(initialValue: value)
+        }
+        
+        if let value = values[key].float {
+            _floatValue = .init(initialValue: value)
+        }
     }
     
     var body: some View {
         Group {
             switch schema["type"] {
-                case "string", "number":
+                case "string":
                     TextView(label: title, text: $stringValue, selections: schema["enum"].array?.map { v in
                         v.stringValue
                     })
+                case "number":
+                    NumberView(label: title, number: $floatValue)
+                case "integer":
+                    IntView(label: title, number: $intValue)
                 case "boolean":
                     Toggle(title, isOn: $boolValue)
+                
                 default:
                     Text("Unsupported type")
             }
@@ -51,10 +68,16 @@ struct FormField: View {
             onAppear()
         }
         .onChange(of: stringValue) { newValue in
-            let v = values.debugDescription
             let newValues = updateValueHelper(value: newValue, key: key, values: values)
             onUpdate(newValues)
         }.onChange(of: boolValue) { newValue in
+            let newValues = updateValueHelper(value: newValue, key: key, values: values)
+            onUpdate(newValues)
+        }.onChange(of: floatValue) { newValue in
+            let newValues = updateValueHelper(value: newValue, key: key, values: values)
+            onUpdate(newValues)
+        }
+        .onChange(of: intValue) { newValue in
             let newValues = updateValueHelper(value: newValue, key: key, values: values)
             onUpdate(newValues)
         }
@@ -62,12 +85,13 @@ struct FormField: View {
     
     func onAppear() {
         switch schema["type"] {
-            case "string", "number":
+            case "string":
                 let newValues = updateValueHelper(value: stringValue, key: key, values: values)
                 onUpdate(newValues)
             case "boolean":
                 let newValues = updateValueHelper(value: boolValue, key: key, values: values)
                 onUpdate(newValues)
+            
             default:
                 break
         }
