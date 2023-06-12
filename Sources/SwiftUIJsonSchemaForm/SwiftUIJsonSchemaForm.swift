@@ -4,32 +4,32 @@ import SwiftyJSON
 public typealias OnUpdate = (JSON) -> Void
 
 struct FormField: View {
-    let keys: [String]
     let schema: JSON
     let title: String
     let onUpdate: OnUpdate
+    let key: String
     
     @State var stringValue: String
     @State var boolValue: Bool
-    @Binding var values: JSON
+    var values: JSON
 
-    init(schema: JSON, values: Binding<JSON>, keys: [String], onUpdate: @escaping OnUpdate) {
+    init(schema: JSON, values: JSON, keys: [String], onUpdate: @escaping OnUpdate) {
         let key = keys.last!
         
-        self._values = values
+        self.values = values
         self.schema = schema
-        self.keys = keys
         self.title = schema["title"].string ?? key
         self.onUpdate = onUpdate
+        self.key = key
         
         _stringValue = .init(initialValue: schema["default"].string ?? "")
         _boolValue = .init(initialValue: schema["default"].boolValue)
         
-        if let value = values.wrappedValue[key].string {
+        if let value = values[key].string {
             _stringValue = .init(initialValue: value)
         }
         
-        if let value = values.wrappedValue[key].bool {
+        if let value = values[key].bool {
             _boolValue = .init(initialValue: value)
         }
     }
@@ -48,25 +48,28 @@ struct FormField: View {
             }
         }
         .onAppear {
-            // Set default value
-            if let value = schema["default"].string {
-                let newValues = updateValueHelper(value: JSON(rawValue: value)!, keys: keys, values: values)
-                values = newValues
-            }
-            
-            if let value = schema["default"].bool {
-                let newValues = updateValueHelper(value: JSON(rawValue: value)!, keys: keys, values: values)
-                values = newValues
-            }
+            onAppear()
         }
         .onChange(of: stringValue) { newValue in
-            let newValues = updateValueHelper(value: JSON(rawValue: newValue)!, keys: keys, values: values)
-            values = newValues
-            onUpdate(values)
+            let v = values.debugDescription
+            let newValues = updateValueHelper(value: newValue, key: key, values: values)
+            onUpdate(newValues)
         }.onChange(of: boolValue) { newValue in
-            let newValues = updateValueHelper(value: JSON(rawValue: newValue)!, keys: keys, values: values)
-            values = newValues
-            onUpdate(values)
+            let newValues = updateValueHelper(value: newValue, key: key, values: values)
+            onUpdate(newValues)
+        }
+    }
+    
+    func onAppear() {
+        switch schema["type"] {
+            case "string", "number":
+                let newValues = updateValueHelper(value: stringValue, key: key, values: values)
+                onUpdate(newValues)
+            case "boolean":
+                let newValues = updateValueHelper(value: boolValue, key: key, values: values)
+                onUpdate(newValues)
+            default:
+                break
         }
     }
 }
@@ -74,43 +77,23 @@ struct FormField: View {
 public struct FormView: View {
     let jsonSchema: JSON
     let previousKey: String?
-    @Binding var values: JSON
+    var values: JSON
     let onUpdate: OnUpdate
     
     /**
      Creates a FormView using SwiftyJSON
      */
-    public init(jsonSchema: JSON, values: Binding<JSON>, onUpdate: @escaping OnUpdate) {
+    public init(jsonSchema: JSON, values: JSON, onUpdate: @escaping OnUpdate) {
         self.jsonSchema = jsonSchema
-        self._values = values
         self.previousKey = nil
         self.onUpdate = onUpdate
-    }
-    
-    /**
-     Creates a FormView using data
-     */
-    public init(jsonSchema: Data, values: Binding<JSON>, onUpdate: @escaping OnUpdate) {
-        self.previousKey = nil
-        self.jsonSchema = try! JSON(data: jsonSchema)
-        self._values = values
-        self.onUpdate = onUpdate
-    }
-    
-    /**
-     Creates a FormView using json string
-     */
-    public init(jsonSchema: String, values: Binding<JSON>, onUpdate: @escaping OnUpdate) {
-        self.previousKey = nil
-        self.jsonSchema = JSON(parseJSON: jsonSchema)
-        self._values = values
-        self.onUpdate = onUpdate
+        self.values = values
     }
     
     public var body: some View {
         Form {
             ForEach(jsonSchema["properties"].dictionaryValue.keys.sorted(), id: \.self) { key in
-                FormField(schema: jsonSchema["properties"][key], values: $values, keys: [key], onUpdate: onUpdate)
+                FormField(schema: jsonSchema["properties"][key], values: values, keys: [key], onUpdate: onUpdate)
             }
         }
     }
@@ -138,9 +121,9 @@ struct JSONSchema_Previews: PreviewProvider {
                 }
             }
         }
-        """, values: .constant(JSON())) { _ in
+        """, values: JSON()) { _ in
         }
-        
+
         FormView(jsonSchema: """
         {
             "type": "object",
@@ -161,7 +144,7 @@ struct JSONSchema_Previews: PreviewProvider {
                 }
             }
         }
-        """, values: .constant(["c": "1111"])) { _ in
+        """, values: ["c": "1111"]) { _ in
         }
     }
 }

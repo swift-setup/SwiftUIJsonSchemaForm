@@ -1,6 +1,6 @@
 //
 //  File.swift
-//  
+//
 //
 //  Created by Qiwei Li on 1/27/23.
 //
@@ -8,15 +8,8 @@
 import Foundation
 import SwiftyJSON
 
-
-func updateValueHelper(value: JSON, keys: [String], values: JSON) -> JSON {
-    let key = keys.first!
+func updateValueHelper(value: Any, key: String, values: JSON) -> JSON {
     var newValues = values
-    if keys.count == 1 {
-        newValues[key] = value
-        return newValues
-    }
-
-    newValues[key] = updateValueHelper(value: value, keys: Array(keys.dropFirst()), values: values[key])
+    newValues[key] = JSON(rawValue: value)!
     return newValues
 }
